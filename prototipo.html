@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Concreto & Madeira</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Matter.js 2D Physics Engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  
+  <!-- Google Fonts: Cormorant Garamond (poetic serif) & Inter (clean UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-storm: #0f172a;
+      --accent-amber: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f172a;
+      font-family: 'Inter', sans-serif;
+      color: #f8fafc;
+    }
+
+    .font-serif-poetic {
+      font-family: 'Cormorant Garamond', serif;
+    }
+
+    #physics-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      20% { transform: translate(-6px, 4px) rotate(-0.8deg); }
+      40% { transform: translate(6px, -4px) rotate(0.8deg); }
+      60% { transform: translate(-4px, -2px) rotate(-0.4deg); }
+      80% { transform: translate(4px, 2px) rotate(0.4deg); }
+    }
+
+    .shake-effect {
+      animation: shake 0.35s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .warm-glass-card {
+      background: rgba(28, 19, 13, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+
+    @keyframes floatUpFade {
+      0% { opacity: 0; transform: translate(-50%, 10px) scale(0.95); }
+      20% { opacity: 1; transform: translate(-50%, 0px) scale(1); }
+      80% { opacity: 1; transform: translate(-50%, -14px) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -26px) scale(0.95); }
+    }
+
+    .memory-toast {
+      animation: floatUpFade 2.6s ease-out forwards;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="relative w-full h-full select-none">
+
+  <!-- Dynamic Sky Background Layer -->
+  <div id="sky-bg" class="fixed inset-0 transition-colors duration-1000 pointer-events-none"
+       style="background: radial-gradient(circle at 50% 35%, #1e293b 0%, #090d16 100%);"></div>
+
+  <!-- Main Interactive Physics Canvas -->
+  <canvas id="physics-canvas" class="fixed inset-0 z-10"></canvas>
+
+  <!-- Top Bar: Act Indicator, Prominent Skip Button & Sound Toggle -->
+  <header id="top-bar" class="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 sm:px-6 py-4 pointer-events-none opacity-0 transition-opacity duration-500">
+    <div class="flex items-center gap-2">
+      <span id="act-badge" class="px-3 py-1.5 text-xs font-semibold tracking-widest uppercase rounded-full bg-slate-900/80 text-amber-300 border border-amber-400/30 shadow">
+        Ato I
+      </span>
+      <span id="act-title-small" class="text-xs text-slate-200/90 hidden sm:inline font-medium">A Rigidez</span>
+    </div>
+
+    <div class="flex items-center gap-2.5 pointer-events-auto">
+      <!-- HIGH-VISIBILITY PROTOTYPE SKIP BUTTON -->
+      <button id="skip-act-btn" type="button"
+              class="px-4 py-2 rounded-full bg-amber-500 hover:bg-amber-400 active:scale-95 transition text-xs font-bold tracking-wider uppercase text-slate-950 shadow-lg shadow-amber-500/30 border-2 border-amber-200 cursor-pointer flex items-center gap-1.5">
+        <span>PULAR ATO ⏭</span>
+      </button>
+
+      <button id="mute-btn" type="button" class="p-2.5 rounded-full bg-slate-900/80 hover:bg-slate-800 active:scale-95 transition text-slate-200 border border-white/15 cursor-pointer shadow" aria-label="Alternar som">
+        <svg id="icon-sound-on" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+        </svg>
+        <svg id="icon-sound-off" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 hidden text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Floating Hint / Instruction Pill -->
+  <div id="instruction-pill" class="fixed top-18 mt-2 left-0 right-0 z-20 flex justify-center px-4 pointer-events-none opacity-0 transition-opacity duration-500" style="top: 4.5rem;">
+    <div class="px-4 py-2 rounded-full glass-card text-center max-w-md shadow-lg">
+      <p id="instruction-text" class="text-xs sm:text-sm text-amber-100/95 font-normal tracking-wide">
+        Toque ou arraste para testar a resistência...
+      </p>
+    </div>
+  </div>
+
+  <!-- Floating Memory Toasts Container -->
+  <div id="memory-layer" class="fixed inset-0 z-20 pointer-events-none overflow-hidden"></div>
+
+  <!-- Bottom Narrative Caption & Action Button -->
+  <div id="narrative-footer" class="fixed bottom-0 left-0 right-0 z-30 p-5 sm:p-8 flex flex-col items-center justify-end pointer-events-none opacity-0 translate-y-4 transition-all duration-700">
+    <div class="glass-card rounded-2xl p-5 sm:p-6 max-w-lg w-full text-center shadow-2xl pointer-events-auto">
+      <p id="narrative-quote" class="font-serif-poetic text-xl sm:text-2xl leading-relaxed text-slate-100 italic mb-4">
+        "Quando algo é rígido demais para dobrar, qualquer tempestade transforma tudo em ruínas impossíveis de colar."
+      </p>
+      <button id="next-act-btn" type="button" class="w-full sm:w-auto px-7 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-semibold text-sm tracking-wide transition shadow-lg shadow-amber-500/20 cursor-pointer">
+        Continuar
+      </button>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       INTRO OVERLAY (Start Screen)
+  ========================================================== -->
+  <div id="intro-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-5 bg-slate-950/90 backdrop-blur-md transition-opacity duration-700">
+    <div class="max-w-md w-full rounded-3xl glass-card p-7 sm:p-9 text-center shadow-2xl border border-amber-500/20">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-5">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      </div>
+
+      <h1 class="font-serif-poetic text-4xl sm:text-5xl font-semibold text-white tracking-tight mb-2">
+        Concreto & Madeira
+      </h1>
+      <p class="text-xs uppercase tracking-[0.2em] text-amber-400/80 mb-6">
+        Uma pequena metáfora interativa
+      </p>
+
+      <div class="p-4 rounded-2xl bg-white/5 border border-white/10 mb-7 text-left">
+        <p class="text-sm text-slate-300 leading-relaxed">
+          <strong class="text-amber-300 font-medium">Antes de começar:</strong> Esta experiência foi feita para ser vivida do começo ao fim, com calma, até revelar o que está guardado no final.
+        </p>
+        <p class="text-xs text-slate-400 mt-2">
+          • Use o toque na tela para interagir com os elementos.<br>
+          • Se puder, deixe o som do celular ligado.
+        </p>
+      </div>
+
+      <button id="start-btn" type="button" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-slate-950 font-semibold text-base tracking-wide shadow-xl shadow-amber-500/20 transition cursor-pointer">
+        Começar Experiência
+      </button>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       ACT 4 OVERLAY: THE SURPRISE & MYSTERY INVITE
+  ========================================================== -->
+  <div id="act4-overlay" class="fixed inset-0 z-40 hidden items-center justify-center p-4 sm:p-6 bg-black/55 backdrop-blur-sm overflow-y-auto">
+    <div class="warm-glass-card rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl my-auto border border-amber-400/30 transform transition-all duration-700 scale-95 opacity-0" id="act4-card">
+      
+      <span class="inline-block px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 text-xs tracking-widest uppercase mb-4 border border-amber-500/20">
+        21 de Dezembro • Carta Aberta
+      </span>
+
+      <h2 class="font-serif-poetic text-3xl sm:text-4xl font-semibold text-amber-50 mb-4 leading-tight">
+        As peças continuam inteiras
+      </h2>
+
+      <p class="text-sm sm:text-base text-amber-100/85 leading-relaxed mb-6 font-light">
+        "Não quero apressar o tempo que precisamos para colocar a cabeça no lugar. Deixo essa carta hoje apenas para que você saiba que as peças continuam aqui, inteiras e guardadas. Quando a poeira baixar, quero recomeçar com você."
+      </p>
+
+      <div class="h-px w-full bg-gradient-to-r from-transparent via-amber-500/40 to-transparent mb-6"></div>
+
+      <!-- MYSTERY CHOICE SECTION -->
+      <div id="mystery-section">
+        <p class="text-xs uppercase tracking-widest text-amber-300/90 mb-2 font-medium">
+          O Próximo Alicerce
+        </p>
+        <p class="text-sm text-slate-300 mb-5">
+          Antes de abrir o convite final, escolha uma letra às cegas para descobrir o cenário:
+        </p>
+
+        <div class="grid grid-cols-2 gap-4 max-w-xs mx-auto mb-2">
+          <button type="button" onclick="selectRestaurant('A')" class="group relative py-5 rounded-2xl bg-gradient-to-b from-amber-500/20 to-amber-600/10 hover:from-amber-500/35 hover:to-amber-600/25 border border-amber-400/40 active:scale-95 transition flex flex-col items-center justify-center shadow-lg cursor-pointer">
+            <span class="font-serif-poetic text-4xl font-bold text-amber-300 group-hover:scale-110 transition-transform">A</span>
+            <span class="text-[11px] uppercase tracking-widest text-amber-200/60 mt-1">Opção A</span>
+          </button>
+
+          <button type="button" onclick="selectRestaurant('M')" class="group relative py-5 rounded-2xl bg-gradient-to-b from-amber-500/20 to-amber-600/10 hover:from-amber-500/35 hover:to-amber-600/25 border border-amber-400/40 active:scale-95 transition flex flex-col items-center justify-center shadow-lg cursor-pointer">
+            <span class="font-serif-poetic text-4xl font-bold text-amber-300 group-hover:scale-110 transition-transform">M</span>
+            <span class="text-[11px] uppercase tracking-widest text-amber-200/60 mt-1">Opção M</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- REVEALED INVITE SECTION -->
+      <div id="invite-reveal-section" class="hidden text-left bg-black/35 rounded-2xl p-5 border border-amber-400/30 transition-all duration-500">
+        <div class="flex items-start justify-between gap-2 mb-3">
+          <div>
+            <span id="chosen-badge" class="text-[11px] uppercase tracking-wider text-amber-400 font-semibold">
+              Você escolheu a letra A
+            </span>
+            <h3 id="restaurant-name" class="font-serif-poetic text-2xl sm:text-3xl font-bold text-white mt-0.5">
+              Restaurante Amado
+            </h3>
+          </div>
+          <button type="button" onclick="toggleOtherOption()" id="switch-option-btn" class="text-xs text-amber-300/80 underline hover:text-amber-200 shrink-0 pt-1 cursor-pointer">
+            Ver opção M
+          </button>
+        </div>
+
+        <div class="space-y-2 text-xs sm:text-sm text-slate-300 mb-5">
+          <div class="flex items-center gap-2.5">
+            <span class="text-amber-400">📅</span>
+            <span><strong>30 de Janeiro de 2027</strong> às <strong>21:00</strong></span>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="text-amber-400">📍</span>
+            <span id="restaurant-address" class="text-slate-300/90">Av. Lafayete Coutinho, 660 - Comércio, Salvador - BA</span>
+          </div>
+        </div>
+
+        <!-- Calendar Action Buttons -->
+        <div class="space-y-2.5">
+          <a id="gcal-link" href="#" target="_blank" rel="noopener noreferrer"
+             class="flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-semibold text-sm transition shadow-lg shadow-amber-500/20">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Salvar no Google Agenda
+          </a>
+
+          <button type="button" id="download-ics-btn" onclick="downloadICS()"
+                  class="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 active:scale-[0.98] text-amber-100 font-medium text-xs sm:text-sm border border-white/15 transition cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Baixar Convite (.ics — Apple / Outlook)
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================
+       APPLICATION LOGIC & MATTER.JS PHYSICS
+  ========================================================== -->
+  <script>
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      toggleMute() {
+        this.muted = !this.muted;
+        document.getElementById('icon-sound-on').classList.toggle('hidden', this.muted);
+        document.getElementById('icon-sound-off').classList.toggle('hidden', !this.muted);
+      }
+
+      playCrack(intensity = 1) {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const bufferSize = this.ctx.sampleRate * 0.15;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.03));
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(900 + Math.random() * 500, now);
+        filter.Q.value = 1.5;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.35 * intensity, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      }
+
+      playCollapse() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(110, now);
+        osc.frequency.exponentialRampToValueAtTime(28, now + 0.7);
+        
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+        
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.75);
+
+        this.playCrack(1.4);
+      }
+
+      playWoodKnock(velocity = 1) {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const vol = Math.min(0.45, Math.max(0.05, velocity * 0.12));
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        const baseFreq = 260 + Math.random() * 110;
+        osc.frequency.setValueAtTime(baseFreq, now);
+        osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.55, now + 0.08);
+
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      }
+
+      playWind() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const duration = 0.65;
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(220, now);
+        filter.frequency.exponentialRampToValueAtTime(650, now + 0.25);
+        filter.frequency.exponentialRampToValueAtTime(180, now + duration);
+        filter.Q.value = 3.0;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.01, now);
+        gain.gain.linearRampToValueAtTime(0.35, now + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      }
+
+      playWarmChime(pitchMultiplier = 1) {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const freqs = [329.63, 415.30, 493.88, 659.25].map(f => f * pitchMultiplier);
+
+        freqs.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+
+          gain.gain.setValueAtTime(0.001, now + idx * 0.04);
+          gain.gain.linearRampToValueAtTime(0.11, now + idx * 0.04 + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.0008, now + idx * 0.04 + 1.2);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.04);
+          osc.stop(now + idx * 0.04 + 1.25);
+        });
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    const { Engine, World, Bodies, Body, Events, Composite } = Matter;
+
+    const canvas = document.getElementById('physics-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    const engine = Engine.create();
+    const world = engine.world;
+    engine.gravity.y = 1.0;
+
+    let ground, leftWall, rightWall;
+    const groundHeight = 60;
+
+    function createBoundaries() {
+      if (ground) World.remove(world, [ground, leftWall, rightWall]);
+      ground = Bodies.rectangle(width / 2, height - groundHeight / 2 + 10, width * 2, groundHeight, {
+        isStatic: true,
+        friction: 0.85,
+        label: 'ground'
+      });
+      leftWall = Bodies.rectangle(-30, height / 2, 60, height * 2, { isStatic: true, label: 'wall' });
+      rightWall = Bodies.rectangle(width + 30, height / 2, 60, height * 2, { isStatic: true, label: 'wall' });
+      World.add(world, [ground, leftWall, rightWall]);
+    }
+    createBoundaries();
+
+    let currentAct = 0;
+    let concreteHits = 0;
+    const maxConcreteHits = 5;
+    let concreteCollapsed = false;
+    let concreteMonolith = null;
+    let concreteCracks = [];
+    let rubblePieces = [];
+
+    let woodPlanks = [];
+    let stormTriggered = false;
+    let rebuildSlots = [];
+    let snappedCount = 0;
+    let draggedPlank = null;
+    let dragOffset = { x: 0, y: 0 };
+    let activeActTimers = [];
+
+    function scheduleActTimeout(fn, delay) {
+      const id = setTimeout(fn, delay);
+      activeActTimers.push(id);
+      return id;
+    }
+
+    function clearActTimers() {
+      activeActTimers.forEach(id => clearTimeout(id));
+      activeActTimers = [];
+    }
+
+    const memories = [
+      "Nossas risadas",
+      "O tempo de respiro",
+      "Aprender a ouvir",
+      "Paciência & calma",
+      "Nossas conversas",
+      "Recomeçar melhor",
+      "Cuidado mútuo",
+      "Novos capítulos"
+    ];
+
+    function clearDynamicBodies() {
+      clearActTimers();
+      const allBodies = Composite.allBodies(world);
+      allBodies.forEach(b => {
+        if (!b.isStatic) World.remove(world, b);
+      });
+      if (concreteMonolith) {
+        World.remove(world, concreteMonolith);
+        concreteMonolith = null;
+      }
+      rubblePieces = [];
+      woodPlanks = [];
+      rebuildSlots = [];
+      draggedPlank = null;
+      pointerDown = false;
+      document.getElementById('memory-layer').innerHTML = '';
+    }
+
+    function updateUIHeader(badge, title, instruction) {
+      const topBar = document.getElementById('top-bar');
+      topBar.classList.remove('opacity-0', 'pointer-events-none');
+      document.getElementById('act-badge').textContent = badge;
+      document.getElementById('act-title-small').textContent = title;
+      
+      const skipBtn = document.getElementById('skip-act-btn');
+      if (currentAct >= 1 && currentAct <= 3) {
+        skipBtn.classList.remove('hidden');
+      } else {
+        skipBtn.classList.add('hidden');
+      }
+      
+      const pill = document.getElementById('instruction-pill');
+      const instText = document.getElementById('instruction-text');
+      if (instruction) {
+        instText.textContent = instruction;
+        pill.classList.remove('opacity-0');
+      } else {
+        pill.classList.add('opacity-0');
+      }
+    }
+
+    function hideNarrativeFooter() {
+      const footer = document.getElementById('narrative-footer');
+      footer.classList.add('opacity-0', 'translate-y-4');
+      footer.classList.remove('pointer-events-auto');
+    }
+
+    function showNarrativeFooter(quoteText, btnText, callback) {
+      const footer = document.getElementById('narrative-footer');
+      document.getElementById('narrative-quote').textContent = `"${quoteText}"`;
+      const btn = document.getElementById('next-act-btn');
+      btn.textContent = btnText;
+      btn.onclick = callback;
+      
+      footer.classList.remove('opacity-0', 'translate-y-4');
+    }
+
+    function startAct1() {
+      currentAct = 1;
+      clearDynamicBodies();
+      hideNarrativeFooter();
+      concreteHits = 0;
+      concreteCollapsed = false;
+      concreteCracks = [];
+
+      updateUIHeader(
+        "Ato I",
+        "A Ilusão da Rigidez",
+        "Toque ou arraste sobre o bloco de concreto para simular o peso dos dias..."
+      );
+
+      const pillarW = Math.min(130, width * 0.34);
+      const pillarH = Math.min(310, height * 0.42);
+      const startX = width / 2;
+      const startY = height - groundHeight - pillarH / 2 + 10;
+
+      concreteMonolith = Bodies.rectangle(startX, startY, pillarW, pillarH, {
+        isStatic: true,
+        label: 'concrete_monolith',
+        renderWidth: pillarW,
+        renderHeight: pillarH
+      });
+      World.add(world, concreteMonolith);
+    }
+
+    function hitConcrete(tapX, tapY) {
+      if (currentAct !== 1 || concreteCollapsed || !concreteMonolith) return;
+      
+      concreteHits++;
+      sound.playCrack(0.7 + concreteHits * 0.15);
+
+      document.body.classList.remove('shake-effect');
+      void document.body.offsetWidth;
+      document.body.classList.add('shake-effect');
+
+      const bounds = concreteMonolith.bounds;
+      const cx = Math.max(bounds.min.x + 15, Math.min(bounds.max.x - 15, tapX || width / 2));
+      const cy = Math.max(bounds.min.y + 20, Math.min(bounds.max.y - 20, tapY || (bounds.min.y + bounds.max.y) / 2));
+      
+      const segments = [];
+      let curX = cx - concreteMonolith.position.x;
+      let curY = cy - concreteMonolith.position.y;
+      const steps = 6 + concreteHits * 2;
+      for (let i = 0; i < steps; i++) {
+        curX += (Math.random() - 0.5) * 38;
+        curY += (Math.random() - 0.35) * 42;
+        segments.push({ x: curX, y: curY });
+      }
+      concreteCracks.push({ startX: cx - concreteMonolith.position.x, startY: cy - concreteMonolith.position.y, segments });
+
+      if (concreteHits < maxConcreteHits) {
+        const remaining = maxConcreteHits - concreteHits;
+        document.getElementById('instruction-text').textContent =
+          remaining === 1 ? "Mais um impacto... a estrutura não aguenta!" : `A tensão está aumentando... (${concreteHits}/${maxConcreteHits})`;
+      } else {
+        shatterConcrete();
+      }
+    }
+
+    function shatterConcrete() {
+      concreteCollapsed = true;
+      sound.playCollapse();
+      document.getElementById('instruction-pill').classList.add('opacity-0');
+
+      const pos = concreteMonolith.position;
+      const w = concreteMonolith.renderWidth;
+      const h = concreteMonolith.renderHeight;
+      World.remove(world, concreteMonolith);
+      concreteMonolith = null;
+
+      const cols = 4;
+      const rows = 8;
+      const cellW = w / cols;
+      const cellH = h / rows;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const rx = pos.x - w / 2 + c * cellW + cellW / 2;
+          const ry = pos.y - h / 2 + r * cellH + cellH / 2;
+          const sides = Math.floor(Math.random() * 3) + 3;
+          const radius = (Math.min(cellW, cellH) * 0.55) * (0.7 + Math.random() * 0.5);
+
+          const shard = Bodies.polygon(rx, ry, sides, radius, {
+            restitution: 0.15,
+            friction: 0.9,
+            density: 0.005,
+            label: 'rubble',
+            shade: Math.floor(100 + Math.random() * 55)
+          });
+
+          Body.setVelocity(shard, {
+            x: (rx - pos.x) * 0.12 + (Math.random() - 0.5) * 6,
+            y: (Math.random() - 0.8) * 5
+          });
+          Body.setAngularVelocity(shard, (Math.random() - 0.5) * 0.3);
+
+          rubblePieces.push(shard);
+          World.add(world, shard);
+        }
+      }
+
+      scheduleActTimeout(() => {
+        showNarrativeFooter(
+          "Quando algo é rígido demais para dobrar, qualquer tempestade transforma tudo em ruínas impossíveis de colar.",
+          "Continuar",
+          startAct2
+        );
+      }, 1500);
+    }
+
+    function startAct2() {
+      currentAct = 2;
+      clearDynamicBodies();
+      hideNarrativeFooter();
+      stormTriggered = false;
+
+      document.getElementById('sky-bg').style.background =
+        "radial-gradient(circle at 50% 35%, #27221f 0%, #0c0f17 100%)";
+
+      updateUIHeader(
+        "Ato II",
+        "A Tempestade na Madeira",
+        "Deslize o dedo pela tela como o vento da tempestade..."
+      );
+
+      const cx = width / 2;
+      const baseY = height - groundHeight + 10;
+      const plankThick = 22;
+      const wallH = 125;
+      const spanW = Math.min(180, width * 0.48);
+
+      const planksConfig = [
+        { x: cx - spanW / 2 + 15, y: baseY - wallH / 2, w: plankThick, h: wallH, angle: 0, memory: memories[0] },
+        { x: cx + spanW / 2 - 15, y: baseY - wallH / 2, w: plankThick, h: wallH, angle: 0, memory: memories[1] },
+        { x: cx, y: baseY - wallH / 2, w: plankThick, h: wallH, angle: 0, memory: memories[2] },
+        { x: cx, y: baseY - wallH - plankThick / 2, w: spanW + 24, h: plankThick, angle: 0, memory: memories[3] },
+        { x: cx - spanW * 0.28, y: baseY - wallH - 52, w: spanW * 0.65, h: plankThick, angle: -0.52, memory: memories[4] },
+        { x: cx + spanW * 0.28, y: baseY - wallH - 52, w: spanW * 0.65, h: plankThick, angle: 0.52, memory: memories[5] },
+      ];
+
+      planksConfig.forEach((cfg, idx) => {
+        const plank = Bodies.rectangle(cfg.x, cfg.y, cfg.w, cfg.h, {
+          angle: cfg.angle,
+          restitution: 0.35,
+          friction: 0.7,
+          density: 0.002,
+          chamfer: { radius: 4 },
+          label: 'wood_plank',
+          plankW: cfg.w,
+          plankH: cfg.h,
+          memory: cfg.memory,
+          isNewGolden: false,
+          snapped: false,
+          woodTone: idx % 2 === 0 ? '#b4692e' : '#9a5422'
+        });
+        woodPlanks.push(plank);
+        World.add(world, plank);
+      });
+    }
+
+    function triggerWoodStorm(swipeVx) {
+      if (currentAct !== 2 || stormTriggered) return;
+      stormTriggered = true;
+      sound.playWind();
+
+      const direction = swipeVx >= 0 ? 1 : -1;
+
+      woodPlanks.forEach((plank) => {
+        Body.setVelocity(plank, {
+          x: direction * (9 + Math.random() * 8) + (Math.random() - 0.5) * 4,
+          y: -6 - Math.random() * 7
+        });
+        Body.setAngularVelocity(plank, direction * (0.08 + Math.random() * 0.14));
+      });
+
+      scheduleActTimeout(() => {
+        document.getElementById('instruction-text').textContent =
+          "Toque nas tábuas caídas para ver o que ficou guardado...";
+      }, 900);
+
+      scheduleActTimeout(() => {
+        showNarrativeFooter(
+          "A madeira não vira pó. A tempestade desmonta a estrutura, mas cada peça continua inteira.",
+          "Reconstruir",
+          () => startAct3(false)
+        );
+      }, 2400);
+    }
+
+    function showFloatingMemory(x, y, text) {
+      const container = document.getElementById('memory-layer');
+      const el = document.createElement('div');
+      el.className = 'memory-toast absolute px-3.5 py-1.5 rounded-full bg-amber-950/90 border border-amber-400/50 text-amber-200 text-xs font-medium shadow-lg whitespace-nowrap';
+      el.style.left = `${Math.max(80, Math.min(width - 80, x))}px`;
+      el.style.top = `${Math.max(90, y - 30)}px`;
+      el.textContent = `✦ ${text}`;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 2650);
+    }
+
+    function startAct3(fromSkip = false) {
+      currentAct = 3;
+      hideNarrativeFooter();
+      snappedCount = 0;
+
+      if (fromSkip || woodPlanks.length === 0) {
+        clearDynamicBodies();
+        document.getElementById('sky-bg').style.background =
+          "radial-gradient(circle at 50% 35%, #27221f 0%, #0c0f17 100%)";
+
+        const baseY = height - groundHeight - 25;
+        for (let i = 0; i < 6; i++) {
+          const isVertical = i < 3;
+          const pw = isVertical ? 22 : Math.min(140, width * 0.36);
+          const ph = isVertical ? 110 : 22;
+          const px = width * (0.22 + (i % 3) * 0.28) + (Math.random() - 0.5) * 20;
+          const py = baseY - Math.floor(i / 3) * 35;
+
+          const plank = Bodies.rectangle(px, py, pw, ph, {
+            angle: (Math.random() - 0.5) * 0.4,
+            restitution: 0.35,
+            friction: 0.7,
+            density: 0.002,
+            chamfer: { radius: 4 },
+            label: 'wood_plank',
+            plankW: pw,
+            plankH: ph,
+            memory: memories[i],
+            isNewGolden: false,
+            snapped: false,
+            woodTone: i % 2 === 0 ? '#b4692e' : '#9a5422'
+          });
+          woodPlanks.push(plank);
+          World.add(world, plank);
+        }
+      } else {
+        clearActTimers();
+      }
+
+      updateUIHeader(
+        "Ato III",
+        "A Reconstrução",
+        "Arraste (ou toque) nas tábuas para encaixar no desenho da casa..."
+      );
+
+      const cx = width / 2;
+      const houseBaseY = Math.min(height * 0.54, height - 230);
+      const houseW = Math.min(190, width * 0.52);
+      const wallH = 120;
+      const thick = 22;
+
+      rebuildSlots = [
+        { id: 0, x: cx, y: houseBaseY, w: houseW + 26, h: thick, angle: 0, filled: false, label: "Base" },
+        { id: 1, x: cx - houseW / 2 + 11, y: houseBaseY - wallH / 2 - thick / 2, w: thick, h: wallH, angle: 0, filled: false, label: "Parede Esq" },
+        { id: 2, x: cx + houseW / 2 - 11, y: houseBaseY - wallH / 2 - thick / 2, w: thick, h: wallH, angle: 0, filled: false, label: "Parede Dir" },
+        { id: 3, x: cx, y: houseBaseY - wallH - thick, w: houseW + 20, h: thick, angle: 0, filled: false, label: "Viga" },
+        { id: 4, x: cx - houseW * 0.28, y: houseBaseY - wallH - 56, w: houseW * 0.66, h: thick, angle: -0.52, filled: false, label: "Telhado Esq" },
+        { id: 5, x: cx + houseW * 0.28, y: houseBaseY - wallH - 56, w: houseW * 0.66, h: thick, angle: 0.52, filled: false, label: "Telhado Dir" },
+        { id: 6, x: cx, y: houseBaseY - wallH / 2 - thick / 2, w: thick * 0.85, h: wallH * 0.92, angle: 0, filled: false, label: "Novo Elo" }
+      ];
+
+      woodPlanks.forEach((p, idx) => {
+        if (idx < 6) {
+          p.snapped = false;
+          p.targetSlot = rebuildSlots[idx + 1];
+          p.memory = memories[idx];
+        }
+      });
+
+      const goldenPlank = Bodies.rectangle(width * 0.5, height - groundHeight - 40, houseW + 20, thick, {
+        restitution: 0.3,
+        friction: 0.8,
+        chamfer: { radius: 4 },
+        label: 'wood_plank',
+        plankW: houseW + 20,
+        plankH: thick,
+        memory: "Tábua Nova: Recomeço",
+        isNewGolden: true,
+        snapped: false,
+        targetSlot: rebuildSlots[0],
+        woodTone: '#f59e0b'
+      });
+      woodPlanks.push(goldenPlank);
+      World.add(world, goldenPlank);
+
+      if (woodPlanks[2]) {
+        woodPlanks[2].isNewGolden = true;
+        woodPlanks[2].memory = "Tábua Nova: Maturidade";
+        woodPlanks[2].woodTone = '#f59e0b';
+      }
+    }
+
+    function snapPlankToSlot(plank, slot) {
+      if (plank.snapped || slot.filled) return;
+
+      plank.snapped = true;
+      slot.filled = true;
+      snappedCount++;
+
+      Body.setStatic(plank, true);
+      Body.setPosition(plank, { x: slot.x, y: slot.y });
+      Body.setAngle(plank, slot.angle);
+      plank.plankW = slot.w;
+      plank.plankH = slot.h;
+
+      sound.playWarmChime(0.85 + snappedCount * 0.06);
+      showFloatingMemory(slot.x, slot.y - 15, plank.memory);
+
+      const progress = snappedCount / rebuildSlots.length;
+      updateSkyWarmth(progress);
+
+      if (snappedCount >= rebuildSlots.length) {
+        completeAct3();
+      }
+    }
+
+    function updateSkyWarmth(progress) {
+      const sky = document.getElementById('sky-bg');
+      if (progress < 0.4) {
+        sky.style.background = "radial-gradient(circle at 50% 40%, #332720 0%, #0f1420 100%)";
+      } else if (progress < 0.85) {
+        sky.style.background = "radial-gradient(circle at 50% 42%, #5c3a21 0%, #1c161d 100%)";
+      } else {
+        sky.style.background = "radial-gradient(circle at 50% 42%, #92400e 0%, #451a03 48%, #140c08 100%)";
+      }
+    }
+
+    function completeAct3() {
+      document.getElementById('instruction-pill').classList.add('opacity-0');
+      sound.playWarmChime(1.25);
+
+      scheduleActTimeout(() => {
+        showNarrativeFooter(
+          "Podemos levantar a mesma casa com as peças que guardamos — e com tábuas novas, ainda mais fortes.",
+          "Abrir o que está guardado",
+          openAct4
+        );
+      }, 900);
+    }
+
+    function openAct4() {
+      clearActTimers();
+      currentAct = 4;
+      hideNarrativeFooter();
+      document.getElementById('instruction-pill').classList.add('opacity-0');
+      const topBar = document.getElementById('top-bar');
+      topBar.classList.add('opacity-0', 'pointer-events-none');
+      document.getElementById('skip-act-btn').classList.add('hidden');
+
+      const overlay = document.getElementById('act4-overlay');
+      const card = document.getElementById('act4-card');
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+
+      requestAnimationFrame(() => {
+        card.classList.remove('scale-95', 'opacity-0');
+        card.classList.add('scale-100', 'opacity-100');
+      });
+    }
+
+    const restaurants = {
+      A: {
+        letter: 'A',
+        name: 'Restaurante Amado',
+        address: 'Av. Lafayete Coutinho, 660 - Comércio, Salvador - BA',
+        otherLetter: 'M'
+      },
+      M: {
+        letter: 'M',
+        name: 'Restaurante Mistura',
+        address: 'Ladeira do Gabriel, 334 - Dois de Julho / Contorno, Salvador - BA',
+        otherLetter: 'A'
+      }
+    };
+
+    let currentChosenLetter = null;
+
+    function selectRestaurant(letter) {
+      currentChosenLetter = letter;
+      sound.playWarmChime(1.1);
+
+      const data = restaurants[letter];
+      document.getElementById('mystery-section').classList.add('hidden');
+      const revealSection = document.getElementById('invite-reveal-section');
+      revealSection.classList.remove('hidden');
+
+      document.getElementById('chosen-badge').textContent = `Você escolheu a letra ${data.letter}`;
+      document.getElementById('restaurant-name').textContent = data.name;
+      document.getElementById('restaurant-address').textContent = data.address;
+      document.getElementById('switch-option-btn').textContent = `Ver opção ${data.otherLetter}`;
+
+      const title = encodeURIComponent(`Jantar & Recomeço — ${data.name}`);
+      const details = encodeURIComponent(
+        `Nosso reencontro depois de colocarmos a cabeça no lugar. Sem pressa, peça por peça.\n\nLocal: ${data.name}\nEndereço: ${data.address}`
+      );
+      const location = encodeURIComponent(`${data.name}, ${data.address}`);
+      const dates = "20270131T000000Z/20270131T023000Z";
+
+      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
+      document.getElementById('gcal-link').href = gcalUrl;
+    }
+
+    function toggleOtherOption() {
+      if (!currentChosenLetter) return;
+      const next = currentChosenLetter === 'A' ? 'M' : 'A';
+      selectRestaurant(next);
+    }
+
+    function downloadICS() {
+      if (!currentChosenLetter) return;
+      const data = restaurants[currentChosenLetter];
+
+      const icsContent = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Concreto & Madeira//Convite Especial//PT",
+        "CALSCALE:GREGORIAN",
+        "BEGIN:VEVENT",
+        "DTSTART:20270131T000000Z",
+        "DTEND:20270131T023000Z",
+        `SUMMARY:Jantar & Recomeço — ${data.name}`,
+        `LOCATION:${data.name}\\, ${data.address}`,
+        `DESCRIPTION:Nosso reencontro depois de colocarmos a cabeça no lugar. Sem pressa\\, peça por peça.`,
+        "STATUS:CONFIRMED",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\r\n");
+
+      const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Convite_${data.name.replace(/\s+/g, '_')}_30Jan2027.ics`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    let pointerDown = false;
+    let pointerStart = { x: 0, y: 0 };
+    let pointerLast = { x: 0, y: 0 };
+
+    function getPointerPos(e) {
+      if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
+    }
+
+    function handlePointerDown(e) {
+      if (currentAct === 0 || currentAct === 4) return;
+      const pos = getPointerPos(e);
+      pointerDown = true;
+      pointerStart = { ...pos };
+      pointerLast = { ...pos };
+
+      if (currentAct === 1 && !concreteCollapsed && concreteMonolith) {
+        const b = concreteMonolith.bounds;
+        if (pos.x >= b.min.x - 30 && pos.x <= b.max.x + 30 && pos.y >= b.min.y - 30 && pos.y <= b.max.y + 30) {
+          hitConcrete(pos.x, pos.y);
+        }
+      }
+
+      if (currentAct === 2 && stormTriggered) {
+        for (let plank of woodPlanks) {
+          if (Matter.Bounds.contains(plank.bounds, pos)) {
+            sound.playWoodKnock(1.5);
+            Body.setVelocity(plank, { x: (Math.random() - 0.5) * 3, y: -3.5 });
+            showFloatingMemory(pos.x, pos.y, plank.memory);
+            break;
+          }
+        }
+      }
+
+      if (currentAct === 3) {
+        for (let i = woodPlanks.length - 1; i >= 0; i--) {
+          const plank = woodPlanks[i];
+          if (plank.snapped) continue;
+          const pad = 22;
+          if (
+            pos.x >= plank.bounds.min.x - pad &&
+            pos.x <= plank.bounds.max.x + pad &&
+            pos.y >= plank.bounds.min.y - pad &&
+            pos.y <= plank.bounds.max.y + pad
+          ) {
+            draggedPlank = plank;
+            dragOffset = { x: pos.x - plank.position.x, y: pos.y - plank.position.y };
+            Body.setVelocity(plank, { x: 0, y: 0 });
+            Body.setAngularVelocity(plank, 0);
+            if (plank.targetSlot) {
+              Body.setAngle(plank, plank.targetSlot.angle);
+            }
+            sound.playWoodKnock(0.9);
+            break;
+          }
+        }
+      }
+    }
+
+    function handlePointerMove(e) {
+      if (!pointerDown) return;
+      const pos = getPointerPos(e);
+
+      if (currentAct === 2 && !stormTriggered) {
+        const dx = pos.x - pointerStart.x;
+        const dy = pos.y - pointerStart.y;
+        if (Math.hypot(dx, dy) > 45) {
+          triggerWoodStorm(dx);
+        }
+      }
+
+      if (currentAct === 3 && draggedPlank) {
+        const targetX = pos.x - dragOffset.x;
+        const targetY = pos.y - dragOffset.y;
+        Body.setPosition(draggedPlank, { x: targetX, y: targetY });
+        Body.setVelocity(draggedPlank, { x: 0, y: 0 });
+
+        const slot = draggedPlank.targetSlot;
+        if (slot && !slot.filled) {
+          const dist = Math.hypot(targetX - slot.x, targetY - slot.y);
+          if (dist < 52) {
+            snapPlankToSlot(draggedPlank, slot);
+            draggedPlank = null;
+          }
+        }
+      }
+
+      pointerLast = { ...pos };
+    }
+
+    function handlePointerUp() {
+      if (!pointerDown) return;
+      pointerDown = false;
+
+      if (currentAct === 3 && draggedPlank) {
+        const movedDist = Math.hypot(pointerLast.x - pointerStart.x, pointerLast.y - pointerStart.y);
+        if (movedDist < 12 && draggedPlank.targetSlot && !draggedPlank.targetSlot.filled) {
+          snapPlankToSlot(draggedPlank, draggedPlank.targetSlot);
+        }
+        draggedPlank = null;
+      }
+    }
+
+    canvas.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+
+    canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+    window.addEventListener('touchmove', handlePointerMove, { passive: false });
+    window.addEventListener('touchend', handlePointerUp);
+
+    Events.on(engine, 'collisionStart', (event) => {
+      event.pairs.forEach(pair => {
+        const speed = pair.collision.depth;
+        if (speed > 1.2) {
+          if (pair.bodyA.label === 'wood_plank' || pair.bodyB.label === 'wood_plank') {
+            sound.playWoodKnock(speed * 0.4);
+          }
+        }
+      });
+    });
+
+    function drawScene() {
+      ctx.clearRect(0, 0, width, height);
+
+      const gradGround = ctx.createLinearGradient(0, height - groundHeight, 0, height);
+      gradGround.addColorStop(0, currentAct >= 3 ? '#291d16' : '#1e293b');
+      gradGround.addColorStop(1, '#090d16');
+      ctx.fillStyle = gradGround;
+      ctx.fillRect(0, height - groundHeight + 10, width, groundHeight);
+
+      ctx.strokeStyle = currentAct >= 3 ? 'rgba(245, 158, 11, 0.25)' : 'rgba(148, 163, 184, 0.2)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, height - groundHeight + 10);
+      ctx.lineTo(width, height - groundHeight + 10);
+      ctx.stroke();
+
+      if (currentAct === 1 && concreteMonolith) {
+        const { x, y } = concreteMonolith.position;
+        const w = concreteMonolith.renderWidth;
+        const h = concreteMonolith.renderHeight;
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        const cGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        cGrad.addColorStop(0, '#64748b');
+        cGrad.addColorStop(0.5, '#475569');
+        cGrad.addColorStop(1, '#334155');
+        ctx.fillStyle = cGrad;
+        ctx.fillRect(-w / 2, -h / 2, w, h);
+
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        concreteCracks.forEach(crack => {
+          ctx.beginPath();
+          ctx.moveTo(crack.startX, crack.startY);
+          crack.segments.forEach(seg => {
+            const clampedX = Math.max(-w / 2 + 4, Math.min(w / 2 - 4, seg.x));
+            const clampedY = Math.max(-h / 2 + 4, Math.min(h / 2 - 4, seg.y));
+            ctx.lineTo(clampedX, clampedY);
+          });
+          ctx.stroke();
+        });
+
+        ctx.restore();
+      }
+
+      rubblePieces.forEach(shard => {
+        ctx.save();
+        ctx.beginPath();
+        const verts = shard.vertices;
+        ctx.moveTo(verts[0].x, verts[0].y);
+        for (let i = 1; i < verts.length; i++) {
+          ctx.lineTo(verts[i].x, verts[i].y);
+        }
+        ctx.closePath();
+        const s = shard.shade;
+        ctx.fillStyle = `rgb(${s}, ${s + 5}, ${s + 12})`;
+        ctx.fill();
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      if (currentAct >= 3 && rebuildSlots.length > 0) {
+        if (snappedCount > 0) {
+          const glowAlpha = (snappedCount / rebuildSlots.length) * 0.45;
+          const houseCenter = rebuildSlots[6];
+          const radGrad = ctx.createRadialGradient(
+            houseCenter.x, houseCenter.y, 10,
+            houseCenter.x, houseCenter.y, 160
+          );
+          radGrad.addColorStop(0, `rgba(251, 191, 36, ${glowAlpha})`);
+          radGrad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+          ctx.fillStyle = radGrad;
+          ctx.fillRect(0, 0, width, height);
+        }
+
+        rebuildSlots.forEach(slot => {
+          if (slot.filled) return;
+          ctx.save();
+          ctx.translate(slot.x, slot.y);
+          ctx.rotate(slot.angle);
+
+          ctx.setLineDash([6, 5]);
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
+          ctx.lineWidth = 1.8;
+          ctx.strokeRect(-slot.w / 2, -slot.h / 2, slot.w, slot.h);
+
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.05)';
+          ctx.fillRect(-slot.w / 2, -slot.h / 2, slot.w, slot.h);
+          ctx.restore();
+        });
+      }
+
+      woodPlanks.forEach(plank => {
+        const { x, y } = plank.position;
+        const w = plank.plankW;
+        const h = plank.plankH;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(plank.angle);
+
+        if (plank.isNewGolden) {
+          ctx.shadowColor = '#f59e0b';
+          ctx.shadowBlur = plank.snapped ? 18 : 14;
+        }
+
+        const wGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        if (plank.isNewGolden) {
+          wGrad.addColorStop(0, '#fbbf24');
+          wGrad.addColorStop(1, '#d97706');
+        } else {
+          wGrad.addColorStop(0, '#c27838');
+          wGrad.addColorStop(1, '#85461b');
+        }
+
+        ctx.fillStyle = wGrad;
+        ctx.beginPath();
+        ctx.roundRect(-w / 2, -h / 2, w, h, 4);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = plank.isNewGolden ? 'rgba(120, 53, 15, 0.35)' : 'rgba(45, 20, 6, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (w > h) {
+          ctx.moveTo(-w * 0.35, -h * 0.15);
+          ctx.lineTo(w * 0.35, -h * 0.15);
+          ctx.moveTo(-w * 0.25, h * 0.2);
+          ctx.lineTo(w * 0.4, h * 0.2);
+        } else {
+          ctx.moveTo(-w * 0.15, -h * 0.35);
+          ctx.lineTo(-w * 0.15, h * 0.35);
+          ctx.moveTo(w * 0.2, -h * 0.25);
+          ctx.lineTo(w * 0.2, h * 0.4);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = plank.isNewGolden ? '#fef3c7' : '#d99b66';
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+        ctx.restore();
+      });
+    }
+
+    function loop() {
+      Engine.update(engine, 1000 / 60);
+      drawScene();
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('resize', () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+      createBoundaries();
+    });
+
+    document.getElementById('mute-btn').addEventListener('click', () => {
+      sound.toggleMute();
+    });
+
+    document.getElementById('skip-act-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      sound.init();
+      if (currentAct === 1) {
+        startAct2();
+      } else if (currentAct === 2) {
+        startAct3(true);
+      } else if (currentAct === 3) {
+        updateSkyWarmth(1);
+        sound.playWarmChime(1.2);
+        openAct4();
+      }
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      sound.init();
+      sound.playWarmChime(1.0);
+
+      const intro = document.getElementById('intro-overlay');
+      intro.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => intro.classList.add('hidden'), 700);
+
+      startAct1();
+    });
+
+    window.onload = function () {
+      loop();
+    };
+  </script>
+</body>
+</html>
