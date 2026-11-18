@@ -1,0 +1,63 @@
+:root {
+  /* Palette — Atmospheric Slate & Ice Accent */
+  --color-bg-canvas: #121619;
+  --color-bg-deep: #0b0e10;
+  --color-bg-surface: rgba(18, 22, 25, 0.86);
+  --color-bg-surface-strong: rgba(18, 22, 25, 0.92);
+  --color-bg-surface-hover: #1d2328;
+  --color-bg-card-dark: rgba(8, 10, 12, 0.88);
+  --color-bg-input: #1a2026;
+  --color-bg-subtle: rgba(255, 255, 255, 0.04);
+  --color-bg-subtle-hover: rgba(255, 255, 255, 0.08);
+
+  --color-accent: #7dd3fc;
+  --color-accent-hover: #bae6fd;
+  --color-accent-soft: #e0f2fe;
+  --color-accent-glow: rgba(125, 211, 252, 0.32);
+  --color-accent-tint: rgba(125, 211, 252, 0.12);
+
+  --color-danger-bg: rgba(239, 68, 68, 0.14);
+  --color-danger-bg-hover: rgba(239, 68, 68, 0.26);
+  --color-danger-border: rgba(248, 113, 113, 0.45);
+  --color-danger-border-hover: rgba(248, 113, 113, 0.75);
+  --color-danger-text: #fecaca;
+  --color-error-text: #fca5a5;
+  --color-error-border: #f87171;
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  --color-text-on-accent: #0b0e10;
+
+  --color-border-subtle: rgba(255, 255, 255, 0.12);
+  --color-border-faint: rgba(255, 255, 255, 0.08);
+  --color-border-accent: rgba(125, 211, 252, 0.3);
+
+  /* Typography */
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Radii */
+  --radius-sm: 0.6rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1.15rem;
+  --radius-xl: 1.5rem;
+  --radius-pill: 9999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 0.2s;
+  --duration-base: 0.45s;
+  --duration-slow: 0.7s;
+
+  /* Z-index layers */
+  --z-canvas: 10;
+  --z-hud: 30;
+  --z-sidebar: 35;
+  --z-topbar: 40;
+  --z-act4: 40;
+  --z-notice: 50;
+  --z-gate: 60;
+  --z-device: 80;
+}

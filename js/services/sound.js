@@ -4,6 +4,10 @@ export class SoundEngine {
     this.muted = false;
   }
 
+  get isMuted() {
+    return this.muted;
+  }
+
   init() {
     if (!this.ctx) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -12,13 +16,17 @@ export class SoundEngine {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
   }
 
   toggleMute() {
     this.muted = !this.muted;
     return this.muted;
+  }
+
+  mute() {
+    this.muted = true;
   }
 
   playCrack(intensity = 1) {
@@ -125,7 +133,7 @@ export class SoundEngine {
   playWarmChime(pitchMultiplier = 1) {
     if (this.muted || !this.ctx) return;
     const now = this.ctx.currentTime;
-    const freqs = [329.63, 415.30, 493.88, 659.25].map((f) => f * pitchMultiplier);
+    const freqs = [329.63, 415.3, 493.88, 659.25].map((f) => f * pitchMultiplier);
 
     freqs.forEach((freq, idx) => {
       const osc = this.ctx.createOscillator();
@@ -142,5 +150,50 @@ export class SoundEngine {
       osc.start(now + idx * 0.04);
       osc.stop(now + idx * 0.04 + 1.25);
     });
+  }
+
+  playThunder() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const duration = 1.4;
+    const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.45));
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(180, now);
+    filter.frequency.exponentialRampToValueAtTime(55, now + duration);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.45, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    noise.start(now);
+  }
+
+  playSelect() {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(520, now);
+    osc.frequency.exponentialRampToValueAtTime(760, now + 0.07);
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.09);
   }
 }
